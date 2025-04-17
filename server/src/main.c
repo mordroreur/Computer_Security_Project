@@ -2,11 +2,14 @@
 #include "../includes/common.h"
 
 
+/*
 #include <stdio.h>
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
 #include <string.h>
+
+
 
 #define KEY_LENGTH 2048
 #define PUB_EXP 65537
@@ -62,8 +65,8 @@ int decrypt_message(const char *priv_key_file, unsigned char *encrypted, int enc
     if (result == -1) handle_errors();
     RSA_free(rsa);
     return result;
-}
-
+}*/
+/*
 int main(int argc, char *argv[]) {
 
     UNUSED(argc);
@@ -71,21 +74,110 @@ int main(int argc, char *argv[]) {
 
     printf("CACA\n");
 
-    const char *pub_key_file = "public.pem";
-    const char *priv_key_file = "private.pem";
-
-    generate_keys(pub_key_file, priv_key_file);
-
-    unsigned char message[] = "Hello secure world!";
-    unsigned char encrypted[KEY_LENGTH];
-    unsigned char decrypted[KEY_LENGTH];
-
-    int encrypted_length = encrypt_message(pub_key_file, message, encrypted);
-    printf("Encrypted message length: %d\n", encrypted_length);
-
-    int decrypted_length = decrypt_message(priv_key_file, encrypted, encrypted_length, decrypted);
-    decrypted[decrypted_length] = '\0';
-    printf("Decrypted message: %s\n", decrypted);
+   
 
     return 0;
 }
+*/
+
+/*
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define N 5
+
+void* run(void* arg) {
+    size_t job = *(size_t*)arg;
+    printf("Hello from thread %zu!\n", job);
+    fflush(stdout);
+    free(arg);
+    return NULL;
+}
+
+int main() {
+    pthread_t threads[N];
+
+    printf("Starting threads...\n");
+    fflush(stdout);
+    
+    for (size_t i = 0; i < N; i++) {
+        size_t* job = malloc(sizeof(size_t));
+        *job = i;
+        if (pthread_create(&threads[i], NULL, run, job) != 0) {
+            perror("pthread_create failed");
+            free(job);
+        }
+    }
+    
+    for (size_t i = 0; i < N; i++) {
+        pthread_join(threads[i], NULL);
+    }
+    
+    printf("Done!\n");
+    fflush(stdout);
+    return 0;
+}
+*/
+
+#include <stdio.h>
+#include <stdlib.h>
+
+
+#ifdef __MINGW32__
+    #include <windows.h>
+#else
+    #include <pthread.h>
+#endif
+
+
+
+#define N 5
+
+
+#ifdef __MINGW32__
+DWORD WINAPI run(LPVOID arg) {
+#else
+void* run(void* arg) {
+#endif
+
+    size_t job = *(size_t*)arg;
+    printf("Job %zu\n", job);
+    return 0;
+}
+
+
+int main() {
+
+    int job = 42;
+    printf("Starting threads...\n");
+
+    /*
+    for (size_t i = 0; i < N; i++) {
+        size_t* job = malloc(sizeof(size_t));
+        *job = i;
+        if (pthread_create(&threads[i], NULL, run, job) != 0) {
+            perror("pthread_create failed");
+            free(job);
+        }
+    }
+
+    for (size_t i = 0; i < N; i++) {
+        pthread_join(threads[i], NULL);
+    }*/
+
+#ifdef __MINGW32__
+    HANDLE thread = CreateThread(NULL, 0, run, &job, 0, NULL);
+    WaitForSingleObject(thread, INFINITE);
+    CloseHandle(thread);
+#else
+    pthread_t thread;
+    pthread_create(&thread, NULL, run, &job);
+    pthread_join(thread, NULL);
+#endif
+
+    printf("Done!\n");
+
+    return 0;
+}
+

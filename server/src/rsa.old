@@ -1,0 +1,161 @@
+main(){
+     EVP_PKEY *pkey = NULL;
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+
+    if (!ctx) {
+        fprintf(stderr, "Error creating key creation context\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_keygen_init(ctx) <= 0) {
+        fprintf(stderr, "Error initializing keygen\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 2048) <= 0) {
+        fprintf(stderr, "Error setting key size\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_keygen(ctx, &pkey) <= 0) {
+        fprintf(stderr, "Error generating key\n");
+        return 1;
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+
+    // Save private key to PEM
+    FILE *f = fopen("private_key.pem", "wb");
+    PEM_write_PrivateKey(f, pkey, NULL, NULL, 0, NULL, NULL);
+    fclose(f);
+
+    f = fopen("public_key.pem", "wb");
+    PEM_write_PUBKEY(f, pkey);
+    fclose(f);
+
+    printf("Key generated successfully.\n");
+
+
+
+    ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!ctx){
+        fprintf(stderr, "Error creating encryption context\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_encrypt_init(ctx) <= 0){
+        fprintf(stderr, "Error initializing encryption\n");
+        return 1;
+    }
+
+    // Optional: set padding (PKCS1 or OAEP)
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0){
+        fprintf(stderr, "Error setting up RSA padding\n");
+        return 1;
+    }
+
+    const char *plaintext = "Hello world!";
+    size_t ciphertext_len;
+    unsigned char ciphertext[256];
+
+    // Get required buffer length
+    if (EVP_PKEY_encrypt(ctx, NULL, &ciphertext_len, (unsigned char*)plaintext, strlen(plaintext)) <= 0) {
+        fprintf(stderr, "Error creating cipher to get length\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_encrypt(ctx, ciphertext, &ciphertext_len, (unsigned char*)plaintext, strlen(plaintext)) <= 0) {
+        fprintf(stderr, "Error creating and saving cipher\n");
+        return 1;
+    }
+
+    EVP_PKEY_CTX_free(ctx);
+
+    printf("Encrypted (%zu bytes):\n", ciphertext_len);
+
+    for (size_t i = 0; i < ciphertext_len; i++)
+        printf("%02X", ciphertext[i]);
+    printf("\n");
+
+    
+    ctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!ctx){
+        fprintf(stderr, "Error creating decryption context\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
+        fprintf(stderr, "Error initializing decryption\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        fprintf(stderr, "Error setting up RSA padding\n");
+        return 1;
+    }
+
+    unsigned char decrypted[256];
+    size_t decrypted_len;
+
+    if (EVP_PKEY_decrypt(ctx, NULL, &decrypted_len, ciphertext, ciphertext_len) <= 0){
+        fprintf(stderr, "Error decrypting cipher to get length\n");
+        return 1;
+    }
+
+    if (EVP_PKEY_decrypt(ctx, decrypted, &decrypted_len, ciphertext, ciphertext_len) <= 0) {
+        fprintf(stderr, "Error decrypting and saving text\n");
+        return 1;
+    }
+
+    // Null-terminate
+    decrypted[decrypted_len] = '\0';
+
+    printf("Decrypted: %s\n", decrypted);
+
+    // Free
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(pkey);
+}
+
+
+
+const char *private_key_pem =
+"-----BEGIN PRIVATE KEY-----\n"
+"MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBK...(rest of the key)...\n"
+"-----END PRIVATE KEY-----\n";
+
+
+BIO *privBio = BIO_new_mem_buf(private_key_pem, -1);
+EVP_PKEY *privkey = PEM_read_bio_PrivateKey(privBio, NULL, NULL, NULL);
+BIO_free(privBio);
+
+
+
+void encrypt_with_public_key(const char *plaintext, unsigned char *ciphertext, size_t *ciphertext_len) {
+    EVP_PKEY *pubkey = NULL;
+
+    FILE *pubFile = fopen("public_key.pem", "rb");
+    if (!pubFile) handleErrors();
+
+    pubkey = PEM_read_PUBKEY(pubFile, NULL, NULL, NULL);
+    fclose(pubFile);
+
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(pubkey, NULL);
+    if (!ctx) handleErrors();
+
+    if (EVP_PKEY_encrypt_init(ctx) <= 0)
+        handleErrors();
+
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0)
+        handleErrors();
+
+    // Determine buffer length
+    if (EVP_PKEY_encrypt(ctx, NULL, ciphertext_len, (unsigned char*)plaintext, strlen(plaintext)) <= 0)
+        handleErrors();
+
+    if (EVP_PKEY_encrypt(ctx, ciphertext, ciphertext_len, (unsigned char*)plaintext, strlen(plaintext)) <= 0)
+        handleErrors();
+
+    EVP_PKEY_free(pubkey);
+    EVP_PKEY_CTX_free(ctx);
+}

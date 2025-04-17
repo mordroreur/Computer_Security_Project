@@ -5,7 +5,7 @@ BUILD_DIR=build
 
 
 CFLAGS= -Wall -MMD -g -Wextra
-LDFLAGS= -lcrypto #-lm # -lpthread -D_REENTRANT
+LDFLAGS= -lcrypto -lpthread # -lm
 
 
 #-fsanitize=thread
