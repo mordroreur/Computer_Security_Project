@@ -1,0 +1,7 @@
+build
+web/build
+windows/build
+.vscode
+game_parameter.txt
+*/game_parameter.txt
+res

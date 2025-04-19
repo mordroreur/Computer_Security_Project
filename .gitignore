@@ -1,0 +1,7 @@
+*/build
+*/windows/build
+.vscode
+*/res
+*/savedFiles
+*/*/savedFiles
+*/includes/version.h

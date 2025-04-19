@@ -72,3 +72,23 @@ void decrypt(const unsigned char *final_ciphertext, unsigned char *plaintext, in
     free(aes_input);
 }
 
+
+
+int main() {
+    const unsigned char aes_key[AES_KEYLEN] = "0123456789ABCDEF";
+    const unsigned char chacha_key[CHACHA_KEYLEN] = "0123456789ABCDEF0123456789ABCDEF";
+    const unsigned char nonce[CHACHA_NONCELEN] = "123456789012";
+
+    const char *text = "HelloWorldHelloW"; // 16 bytes (multiple of 16)
+    int len = strlen(text);
+    unsigned char ciphertext[256] = {0};
+    unsigned char decrypted[256] = {0};
+
+    encrypt((const unsigned char*)text, ciphertext, len, aes_key, chacha_key, nonce);
+    decrypt(ciphertext, decrypted, len, aes_key, chacha_key, nonce);
+
+    printf("Original:  %s\n", text);
+    printf("Decrypted: %s\n", decrypted);
+
+    return 0;
+}
