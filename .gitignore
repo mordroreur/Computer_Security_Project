@@ -6,3 +6,5 @@
 */*/savedFiles
 */includes/version.h
 test/*
+SDL3-x64/*
+SDL3_git/build/*
