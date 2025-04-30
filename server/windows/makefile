@@ -7,7 +7,7 @@ CFLAGS=-Wall -MMD -Wextra -I'../includes/' -I'../../openssl/usr/local/include'
 LDFLAGS= 	-lmingw32 \
 			-L'../../openssl/usr/local/lib64' -lssl -lcrypto \
 			-lws2_32 -lcrypt32 \
-			-pthread
+			-pthread -lm
 
 
 
@@ -51,6 +51,8 @@ mrproper: clean
 	rm -rf $(EXEC)
 	rm -rf compile_commands.json
 	rm -rf .clangd
+	rm -rfd savedFiles
+
 
 clangd: clean
 	bear make

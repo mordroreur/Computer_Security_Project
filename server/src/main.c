@@ -1,5 +1,140 @@
 #include "../includes/version.h"
 #include "../includes/common.h"
+#include "../includes/clientHandler.h"
+
+
+
+int main() {
+#ifdef __MINGW32__
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+char isfolder;
+#ifdef __MINGW32__
+  DWORD attrs = GetFileAttributesA(ALL_FILE_FOLDER);
+  isfolder = (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY));
+#else
+  struct stat st;
+  isfolder =  (stat(ALL_FILE_FOLDER, &st) == 0 && S_ISDIR(st.st_mode));
+#endif
+
+  if(!isfolder){
+#ifdef __MINGW32__
+    CreateDirectoryA(ALL_FILE_FOLDER, NULL);
+#else
+    mkdir(ALL_FILE_FOLDER, 0755);
+#endif
+  }
+
+  socket_t server_fd;    
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_len = sizeof(client_addr);
+
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET) {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(PORT);
+
+    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+        perror("bind failed");
+        CLOSESOCKET(server_fd);
+        exit(EXIT_FAILURE);
+    }
+
+
+    if (listen(server_fd, 5) == SOCKET_ERROR) {
+        perror("listen failed");
+        CLOSESOCKET(server_fd);
+        exit(EXIT_FAILURE);
+    }
+
+
+    char ip_str[INET_ADDRSTRLEN];
+    struct sockaddr_in actual_addr;
+    socklen_t actual_len = sizeof(actual_addr);
+
+    if (getsockname(server_fd, (struct sockaddr*)&actual_addr, &actual_len) == -1) {
+        perror("getsockname failed");
+        exit(EXIT_FAILURE);
+    }
+
+#ifdef __MINGW32__
+    if (InetNtop(AF_INET, &actual_addr.sin_addr, ip_str, INET_ADDRSTRLEN) == NULL) {
+        perror("InetNtop failed");
+        exit(EXIT_FAILURE);
+    }
+#else
+    if (inet_ntop(AF_INET, &actual_addr.sin_addr, ip_str, INET_ADDRSTRLEN) == NULL) {
+        perror("inet_ntop failed");
+        exit(EXIT_FAILURE);
+    }
+#endif
+
+    printf("Server listening on %s:%d\n", ip_str, PORT);
+
+
+
+    while (1) {
+        socket_t* client_fd = malloc(sizeof(socket_t));
+        *client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+        if (*client_fd == INVALID_SOCKET) {
+            perror("accept failed");
+            free(client_fd);
+            continue;
+        }
+
+#ifdef __MINGW32__
+        THREAD_HANDLE thread = CreateThread(NULL, 0, client_handler, client_fd, 0, NULL);
+        if (thread == NULL) {
+            perror("CreateThread failed");
+            CLOSESOCKET(*client_fd);
+            free(client_fd);
+        } else {
+            CloseHandle(thread); // detach
+        }
+#else
+        THREAD_HANDLE thread;
+        if (pthread_create(&thread, NULL, client_handler, client_fd) != 0) {
+            perror("pthread_create failed");
+            CLOSESOCKET(*client_fd);
+            free(client_fd);
+        } else {
+            pthread_detach(thread); // detach
+        }
+#endif
+    }
+
+    CLOSESOCKET(server_fd);
+
+#ifdef __MINGW32__
+    WSACleanup();
+#endif
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /*
@@ -119,7 +254,7 @@ int main() {
     return 0;
 }
 */
-
+/*
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -152,7 +287,7 @@ int main() {
     int job = 42;
     printf("Starting threads...\n");
 
-    /*
+    
     for (size_t i = 0; i < N; i++) {
         size_t* job = malloc(sizeof(size_t));
         *job = i;
@@ -164,7 +299,7 @@ int main() {
 
     for (size_t i = 0; i < N; i++) {
         pthread_join(threads[i], NULL);
-    }*/
+    }
 
 #ifdef __MINGW32__
     HANDLE thread = CreateThread(NULL, 0, run, &job, 0, NULL);
@@ -180,4 +315,4 @@ int main() {
 
     return 0;
 }
-
+*/

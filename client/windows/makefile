@@ -3,10 +3,24 @@ CC=x86_64-w64-mingw32-gcc # Use mingw-w64 cross-compiler for 64-bit Windows
 SRC_DIR=../src
 BUILD_DIR=build
 
-CFLAGS=-Wall -MMD -Wextra -I./SDL3-x64/include -I'../includes/'
-LDFLAGS=-L./SDL3-x64/lib -lSDL3 \
+CFLAGS=-Wall -MMD -Wextra -I./SDL3-x64-win/include -I./SDL3-ttf-x64-win/include -I'../includes/' -I'../../openssl/usr/local/include' -I'../../libsodium/include'
+LDFLAGS=-L./SDL3-x64-win/lib -lSDL3 \
+		-L./SDL3-ttf-x64-win/lib -lSDL3_ttf \
+		-L./freetype-win/lib -lfreetype\
+		-L'../../openssl/usr/local/lib64' -lssl -lcrypto \
+		-L'../../libsodium/lib' -lsodium\
+		-lws2_32 -lcrypt32 \
+		-pthread \
 		-lmingw32 -lwinmm -lole32 -loleaut32 -lsetupapi -limm32 -lversion -luuid -lgdi32 \
 		-lm -static -static-libgcc -static-libstdc++
+
+
+
+
+			
+
+
+
 # -mwindows
 # -L./SDL3-x64/lib -lSDL3 -lmingw32 -lwinmm -lole32 -lm -mwindows -static  # -mwindows
 # -lmingw32 for Windows support

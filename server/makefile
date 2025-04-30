@@ -5,7 +5,7 @@ BUILD_DIR=build
 
 
 CFLAGS= -Wall -MMD -g -Wextra
-LDFLAGS= -lcrypto -lpthread # -lm
+LDFLAGS= -lcrypto -lpthread -lm
 
 
 #-fsanitize=thread
@@ -43,6 +43,7 @@ mrproper: clean
 	rm -rf $(EXEC)
 	rm -rf compile_commands.json
 	rm -rf .clangd
+	rm -rfd savedFiles
 
 clangd: clean
 	bear make

@@ -1,4 +1,4 @@
-prefix=/mnt/d/cours/SDL3/SDL3-x64
+prefix=/mnt/d/cours/SDL3/SDL3-v2
 exec_prefix=${prefix}
 libdir=${prefix}/lib
 includedir=${prefix}/include

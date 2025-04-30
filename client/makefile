@@ -4,8 +4,8 @@ SRC_DIR=src
 BUILD_DIR=build
 
 
-CFLAGS= -Wall -MMD -g -Wextra -I../SDL3-x64/include
-LDFLAGS=-L../SDL3-x64/lib -lSDL3 -lm # -lpthread -D_REENTRANT  -L../SDL3-x64/lib
+CFLAGS= -Wall -MMD -g -Wextra -I../SDL3-x64/include -I../SDL3-ttf-x64/include $(pkg-config --cflags harfbuzz)
+LDFLAGS=-lcrypto -L../SDL3-x64/lib -L../SDL3-ttf-x64/lib -lSDL3 -lSDL3_ttf -lfreetype -lpng -lz -lbrotlidec -lbrotlicommon -L/usr/lib/x86_64-linux-gnu $(shell pkg-config --libs harfbuzz) -lbz2 -lsodium -lm #-static# -lpthread
 
 
 #-fsanitize=thread

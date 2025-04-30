@@ -1,5 +1,7 @@
 #!/bin/bash
 
+VERSION_FILE="version.h"
+
 # Get the latest Git tag
 LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null)
 
@@ -21,8 +23,16 @@ fi
 # Construct the version string
 VERSION="${LATEST_TAG}-${COMMIT_HASH}${DIRTY}"
 
-# Generate the version.h file
-cat <<EOF > version.h
+# Check existing version if version.h exists
+if [ -f "$VERSION_FILE" ]; then
+    EXISTING_VERSION=$(grep 'VERSION_STRING' "$VERSION_FILE" | cut -d '"' -f2)
+else
+    EXISTING_VERSION=""
+fi
+
+# Only regenerate if version changed
+if [ "$VERSION" != "$EXISTING_VERSION" ]; then
+    cat <<EOF > "$VERSION_FILE"
 #ifndef __MORDROREUR_VERSION_H__
 #define __MORDROREUR_VERSION_H__
 
@@ -31,4 +41,7 @@ cat <<EOF > version.h
 #endif // __MORDROREUR_VERSION_H__
 EOF
 
-echo "version.h generated with VERSION_STRING: ${VERSION}"
+    echo "version.h generated with VERSION_STRING: ${VERSION}"
+else
+    echo "version.h is up-to-date (VERSION_STRING: ${VERSION})"
+fi
