@@ -1,6 +1,25 @@
 #include "../includes/clientHandler.h"
 #include "../includes/RSAcrypto.h"
 
+
+void remove_carriage_return(char *str) {
+    char *src = str, *dst = str;
+    while (*src) {
+        if (*src != '\r') {
+            *dst++ = *src;
+        }
+        src++;
+    }
+    *dst = '\0';
+}
+
+void remove_trailing_newline(char *str) {
+    size_t len = strlen(str);
+    while (len > 0 && (str[len - 1] == '\n' || str[len - 1] == '\r')) {
+        str[--len] = '\0';
+    }
+}
+
 THREAD_RETURN client_handler(void* arg) {
     socket_t client_fd = *(socket_t*)arg;
     free(arg);
@@ -34,6 +53,7 @@ THREAD_RETURN client_handler(void* arg) {
         memset(buffer, 0, BUFFER_SIZE);
 
         int bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0);
+        //printf("received %d\n", bytes_received);
 
         if (bytes_received <= 0) {
             printf("Client disconnected.\n");
@@ -42,6 +62,7 @@ THREAD_RETURN client_handler(void* arg) {
 
 
         decryptBigServ((unsigned char*) buffer, bytes_received, &mess, &messSize);
+        //printf("%s\n", mess);
 
 
         int type = 0;
@@ -66,17 +87,29 @@ THREAD_RETURN client_handler(void* arg) {
             restOfMessage = strchr(restOfMessage, '\n');
             strcpy(mess, restOfMessage+1);
             *restOfMessage = '\0';
-            // printf("We get : \nType = %d\nPort= %d Pseudo = %s\n\nKey = %s\nEND of COMM\n", type, port, Pseudo, mess);
+            //remove_carriage_return(mess);
+            //remove_trailing_newline(mess);
+            //printf("We get : \nType = %d\nPort= %d Pseudo = %s\n\nKey = %s\nEND of COMM\n", type, port, Pseudo, mess);
             if(checkFileContent(Pseudo, mess, client_ip, port) == 0){
                 strcpy(buffer, "Ok");
             }else{
                 strcpy(buffer, "No");
             }
+            
 
             clientKey = loadKeyFromFile(Pseudo);
+
+            remove_carriage_return(clientKey);
+            remove_trailing_newline(clientKey);
             size_t message_size;
             unsigned char * encMes;
-            encryptFromCharKey(clientKey, buffer, 3, &encMes, &message_size);
+            if(encryptFromCharKey(clientKey, buffer, 3, &encMes, &message_size) == 1){
+                free(clientKey);
+                clientKey = loadKeyFromFile(Pseudo);
+                remove_carriage_return(clientKey);
+                remove_trailing_newline(clientKey);
+                encryptFromCharKey(clientKey, buffer, 3, &encMes, &message_size);
+            }
             
 
             send(client_fd, (char *)encMes, message_size, 0);
@@ -188,7 +221,7 @@ int readFileContent(const char* fileName, char* content) {
     char file_name[MAX_LENGTH_FILE_NAME];
     sprintf(file_name, "%s%s", ALL_FILE_FOLDER, fileName);
     //printf("%s\n", file_name);
-    FILE* file = fopen(file_name, "r");  // Open in read mode
+    FILE* file = fopen(file_name, FILE_MODE);  // Open in read mode
     if (!file) {
         //printf("Failed to open file: %s\n", fileName);
         return 1;
@@ -270,7 +303,7 @@ int checkFileContent(const char* wholeMessage, const char* thisMessage, const ch
     char file_name[MAX_LENGTH_FILE_NAME];
     sprintf(file_name, "%s%s", ALL_FILE_FOLDER, wholeMessage);
 
-    FILE* file = fopen(file_name, "r");
+    FILE* file = fopen(file_name, FILE_MODE);
     if (!file) {
         // Create new file
         file = fopen(file_name, "w");
@@ -316,26 +349,38 @@ int checkFileContent(const char* wholeMessage, const char* thisMessage, const ch
         printf("Memory allocation failed.\n");
         return 1;
     }
+
     fread(buffer, 1, fileSize - read, file);
     buffer[fileSize - read] = '\0';
+ 
 
     fclose(file);
     free(line);
 
     int needUpdate = 0;
+    /*remove_carriage_return(buffer);
 
+    char* cleanMessage = strdup(thisMessage);
+    if (!cleanMessage) {
+        free(buffer);
+        return 1;
+    }
+    remove_carriage_return(buffer);
+    remove_trailing_newline(buffer);*/
     // Check IP
     if (strcmp(file_ip, client_ip) != 0) {
         needUpdate = 1;  // IP changed — full rewrite
-    }
-    // Check message
-    else if (strcmp(buffer, thisMessage) != 0) {
-        needUpdate = 1;  // Message changed
     }
     // Check port
     else if (atoi(file_port) != client_port) {
         needUpdate = 2;  // Only port changed
     }
+    // Check message
+    else if (strcmp(buffer, thisMessage) != 0) {
+        needUpdate = 4;  // Message changed
+        //printf("ici : %s\n", buffer);
+    }
+    
 
     // If updates needed
     if (needUpdate == 2) {
@@ -347,6 +392,8 @@ int checkFileContent(const char* wholeMessage, const char* thisMessage, const ch
         }
         fprintf(file, "%s:%d\n%s", client_ip, client_port, thisMessage);
         fclose(file);
+        needUpdate = 0;
+    }else if(needUpdate == 4){
         needUpdate = 0;
     }
 
@@ -361,7 +408,7 @@ char* loadKeyFromFile(const char* wholeMessage) {
     char file_name[MAX_LENGTH_FILE_NAME];
     sprintf(file_name, "%s%s", ALL_FILE_FOLDER, wholeMessage);
 
-    FILE* file = fopen(file_name, "r");
+    FILE* file = fopen(file_name, FILE_MODE);
     if (!file) {
         printf("File '%s' not found.\n", file_name);
         return NULL;

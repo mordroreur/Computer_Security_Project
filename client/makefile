@@ -29,10 +29,15 @@ build_version:
 	cd includes; ./generate_version.sh
 
 sdl3_build:
-	mkdir -p $(SDL3_BUILD_DIR)
-	cd $(SDL3_BUILD_DIR) && \
-		cmake -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=../$(SDL3_INSTALL_DIR) ..
-	cd $(SDL3_BUILD_DIR) && $(MAKE) && $(MAKE) install
+	@if [ ! -d "$(SDL3_INSTALL_DIR)" ]; then \
+		echo "==> Building SDL3"; \
+		mkdir -p $(SDL3_BUILD_DIR); \
+		cd $(SDL3_BUILD_DIR) && \
+		cmake -DSDL_STATIC=ON -DSDL_SHARED=OFF -DCMAKE_INSTALL_PREFIX=../$(SDL3_INSTALL_DIR) .. && \
+		$(MAKE) && $(MAKE) install; \
+	else \
+		echo "==> Skipping SDL3 build, ../$(SDL3_INSTALL_DIR) already exists"; \
+	fi
 
 $(EXEC):$(OBJ) 
 	$(CC) -o $@ $^ $(LDFLAGS)

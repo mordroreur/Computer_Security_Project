@@ -13,9 +13,13 @@
 #define MAX_LENGTH_FILE_NAME 128
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
-// TODO : remove #define FPS_TO_GET 60
 
 
+#ifdef __MINGW32__
+    #define FILE_MODE "rt"  // Windows: 't' enforces text mode
+#else
+    #define FILE_MODE "r"   // Unix: no 't' needed
+#endif
 
 
 

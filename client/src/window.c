@@ -261,7 +261,6 @@ void getPseudo(AppState *as, char *newIP, int* messLen){
     // Present the renderer
     SDL_RenderPresent(as->renderer);
 
-
 }
 
 
@@ -312,9 +311,14 @@ void messagePersonSDL(AppState *as){
                 // Handle backspace
                 if(as->game_still_running == 0){
                     if(as->searchSize > 0){
-                        as->search[--(as->searchSize)] = '\0';
-                        free(as->searched);
-                        searchServer(as, as->search, &as->searched);
+                        if(!as->MainServ){
+                            as->search[--(as->searchSize)] = '\0';
+                            free(as->searched);
+                            searchServer(as, as->search, &as->searched);
+                        }else{
+                            as->search[--(as->searchSize)] = '\0';
+                        }
+
                     }
                 }else{
                     if(person_see->typingLength > 0){
@@ -328,8 +332,10 @@ void messagePersonSDL(AppState *as){
                 if ((int)(as->searchSize + strlen(e.text.text)) < MAX_USERNAME_SIZE - 1) {
                     strcat(as->search, e.text.text);
                     as->searchSize += strlen(e.text.text);
-                    free(as->searched);
-                    searchServer(as, as->search, &as->searched);
+                    if(!as->MainServ){
+                        free(as->searched);
+                        searchServer(as, as->search, &as->searched);
+                    }
                 }
             }else{
                 if ((int)(person_see->typingLength + strlen(e.text.text)) < MAX_INPUT_LENGTH - 1) {

@@ -33,15 +33,19 @@ int main(int argc, char *argv[]) {
   if(as->GUI == 0){
     printf("Welcome to the skyche, the message app by Mordroreur.\nYou are running the version %s.\n", VERSION_STRING);
   }
-
+  as->gmprm.pseudo = NULL;
   loadParameter(as);
+
+  
   as->canrem = 1;
   if (as->GUI) {
     Initialize_sdl_window(as);
     drawLoading(as);
   }
 
+
   loadPrivatePublicKeys(as);
+
 
   as->MainServ = 2;
   char serv_ip[MAX_IP_LENGTH];
@@ -85,6 +89,7 @@ int main(int argc, char *argv[]) {
   as->listeningPORT = -1;
 
 #ifdef __MINGW32__
+
   THREAD_HANDLE thread = CreateThread(NULL, 0, serverHandler, as, 0, NULL);
   if (thread == NULL) {
       exit(EXIT_FAILURE);
@@ -99,7 +104,8 @@ int main(int argc, char *argv[]) {
     pthread_detach(thread); // detach
   }
 #endif
-  
+
+
 
 char isPseudoGood = 0;
   do{
@@ -165,6 +171,9 @@ char isPseudoGood = 0;
     as->searchSize = 0;
     searchServer(as, "", &as->searched);
     SDL_StartTextInput(as->window);
+  }else if(as->MainServ == 1){
+    memset(as->search, 0, MAX_USERNAME_SIZE);
+    as->searchSize = 0;
   }
 
   as->game_still_running = 0;

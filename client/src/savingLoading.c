@@ -22,7 +22,7 @@ int loadParameter(AppState* ap){
   char file_name[MAX_LENGTH_FILE_NAME];
   sprintf(file_name, "%s%s", ALL_FILE_FOLDER, PARAM_NAME);
   
-  FILE *param = fopen(file_name, "r");
+  FILE *param = fopen(file_name, FILE_MODE);
   if(param == NULL){
     ap->gmprm.pseudo = NULL;
     ap->gmprm.window_width = WINDOW_WIDTH;
@@ -68,27 +68,71 @@ char* key = strchr(result, '\n')+1;
         free(result);
         return 1;
     }
-*/
-int readParameterFile(game_parameter_t *gp){
-  char file_name[MAX_LENGTH_FILE_NAME];
-  sprintf(file_name, "%s%s", ALL_FILE_FOLDER, PARAM_NAME);
-  FILE* param = fopen(file_name, "r");
-  if(param == NULL){
-    return 1;
-  }else{
+
+  FILE* param = fopen(file_name, "rt");  // 't' is optional on Linux but explicit for Windows
+    if (param == NULL) {
+        return 1;
+    }
+
     char username[MAX_USERNAME_SIZE];
-    fgets(username, MAX_USERNAME_SIZE, param);
-    username[strcspn(username, "\n")] = 0;
-    fscanf(param, "%d\n%d\n", &(gp->window_width), &(gp->window_height));
+    if (fgets(username, MAX_USERNAME_SIZE, param) == NULL) {
+        fclose(param);
+        return 1;
+    }
+
+    // Remove both \r and \n for Windows line endings
+    username[strcspn(username, "\r\n")] = '\0';
+
+    if (fscanf(param, "%d\n%d\n", &(gp->window_width), &(gp->window_height)) != 2) {
+        fclose(param);
+        return 1;
+    }
+
     fclose(param);
 
-
-    if(strcmp(username, "(null)") != 0){
-      size_t len = strlen(username);
-      gp->pseudo = (char*)malloc(sizeof(char)*(len+1));
-      strcpy(gp->pseudo, username);
+    if (strcmp(username, "(null)") != 0) {
+        size_t len = strlen(username);
+        gp->pseudo = (char*)malloc(len + 1);
+        if (gp->pseudo == NULL) return 1; // malloc failed
+        strcpy(gp->pseudo, username);
     }
+
+
+*/
+int readParameterFile(game_parameter_t *gp) {
+  char file_name[MAX_LENGTH_FILE_NAME];
+  snprintf(file_name, MAX_LENGTH_FILE_NAME, "%s%s", ALL_FILE_FOLDER, PARAM_NAME);
+
+  FILE* param = fopen(file_name, FILE_MODE);
+  if (param == NULL) {
+      return 1;
   }
+
+  char username[MAX_USERNAME_SIZE];
+  if (fgets(username, MAX_USERNAME_SIZE, param) == NULL) {
+      fclose(param);
+      return 1;
+  }
+
+  // Remove both '\r' and '\n'
+  username[strcspn(username, "\r\n")] = '\0';
+
+  if (fscanf(param, "%d\n%d\n", &(gp->window_width), &(gp->window_height)) != 2) {
+      fclose(param);
+      return 1;
+  }
+
+  fclose(param);
+
+  if (strcmp(username, "(null)") != 0 && username[0] != '\0') {
+      size_t len = strlen(username);
+      gp->pseudo = (char*)malloc(len + 1);
+      if (!gp->pseudo) return 1;
+      strcpy(gp->pseudo, username);
+  } else {
+      gp->pseudo = NULL;  // handle explicitly if needed
+  }
+
   return 0;
 }
 
@@ -158,6 +202,14 @@ int loadPublicKeyAsChar(char** key, size_t* keySize) {
 
   // Read the whole file
   size_t bytesRead = fread(*key, 1, fileSize, file);
+  /*if ((unsigned char)(*key[0]) == 0xEF &&
+      (unsigned char)(*key[1]) == 0xBB &&
+      (unsigned char)(*key[2]) == 0xBF) {
+      // Skip the BOM
+      memmove(*key, *key + 3, fileSize - 2);
+      (*key)[fileSize - 3] = '\0';
+      *keySize -= 3;
+  }*/
   fclose(file);
 
   if ((int)(bytesRead) != fileSize) {

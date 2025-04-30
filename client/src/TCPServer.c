@@ -55,7 +55,7 @@ THREAD_RETURN listen_to_person(void* arg)
         
         message_t * mes = (message_t*)malloc(sizeof(message_t));
         mes->cypher = (unsigned char*)malloc(sizeof(char)*(bytes_received+1));
-        strcpy((char*)mes->cypher, buffer);
+        memcpy((char*)mes->cypher, buffer, bytes_received);
         mes->cypher[bytes_received] = '\0';
         mes->cypherLength = bytes_received;
 
@@ -148,14 +148,37 @@ int connectToMainServer(AppState* as, char* serverIP){
 
 }
 
+void remove_carriage_return(char *str) {
+    char *src = str, *dst = str;
+    while (*src) {
+        if (*src != '\r') {
+            *dst++ = *src;
+        }
+        src++;
+    }
+    *dst = '\0';
+}
+
+void trim_trailing_newlines(char* str) {
+    size_t len = strlen(str);
+    while (len > 0 && (str[len - 1] == '\n' || str[len - 1] == '\r')) {
+        str[--len] = '\0';
+    }
+}
 
 int checkUsernameAndKey(AppState* as, char* username){
 
     char* publicKey;
     size_t sizeOfKey;
     loadPublicKeyAsChar(&publicKey, &sizeOfKey);
-
+    //remove_carriage_return(publicKey);
+    //trim_trailing_newlines(publicKey);
+#ifdef __MINGW32__
+    size_t messageSize = snprintf(NULL, 0, "1\n%d\n%s\n%s--", as->listeningPORT, username, publicKey);
+#else
     size_t messageSize = snprintf(NULL, 0, "1\n%d\n%s\n%s", as->listeningPORT, username, publicKey);
+#endif
+    
     char* wholemessage = (char*)malloc(sizeof(char)*(messageSize+1));
 
     unsigned char* encmess;
@@ -164,10 +187,16 @@ int checkUsernameAndKey(AppState* as, char* username){
         msleep(10);
     }
 
+#ifdef __MINGW32__
+    sprintf(wholemessage, "1\n%d\n%s\n%s--", as->listeningPORT, username, publicKey);
+#else
     sprintf(wholemessage, "1\n%d\n%s\n%s", as->listeningPORT, username, publicKey);
+#endif
+    
 
     encryptBigMessageServ(wholemessage, messageSize, &encmess, &encSize);
-
+    
+    //printf("mes : %s\nsend : %zu, %zu\n", wholemessage, encSize, strlen(wholemessage));
 
     send(mainServerSock, (char *)encmess, encSize, 0);
 
@@ -412,10 +441,15 @@ int getFromServer(AppState* as, char* word){
     }
     *colon = '\0';
     new_pers->ip = (char*)malloc(sizeof(char)*(colon-line+1));
+
+
     
     strncpy(new_pers->ip, line, colon-line+1);
+    
 
     new_pers->port = atoi(colon+1);
+
+    printf("new_pers->ip : %s:%d\n", new_pers->ip, new_pers->port);
 
     //printf("%s:%d\n", new_pers->ip, new_pers->port);
 

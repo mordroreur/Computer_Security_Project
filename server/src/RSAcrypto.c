@@ -122,6 +122,7 @@ int decryptBigServ(const unsigned char* encmes, size_t encSize, char** mess, siz
         size_t buffsize;
 
         decryptServ(enctmp, ENCRYPTED_LENGTH, &buff, &buffsize);
+        //printf("%s\n", buff);
 
         *messSize += buffsize;
         

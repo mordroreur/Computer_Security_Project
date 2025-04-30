@@ -7,6 +7,12 @@
 #define MAX_LENGTH_FILE_NAME 128
 #define ALL_FILE_FOLDER "./savedFiles/"
 
+#ifdef __MINGW32__
+    #define FILE_MODE "rt"  // Windows: 't' enforces text mode
+#else
+    #define FILE_MODE "r"   // Unix: no 't' needed
+#endif
+
 THREAD_RETURN client_handler(void*);
 
 
