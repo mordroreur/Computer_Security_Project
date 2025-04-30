@@ -190,7 +190,7 @@ int readFileContent(const char* fileName, char* content) {
     //printf("%s\n", file_name);
     FILE* file = fopen(file_name, "r");  // Open in read mode
     if (!file) {
-        printf("Failed to open file: %s\n", fileName);
+        //printf("Failed to open file: %s\n", fileName);
         return 1;
     }
 
