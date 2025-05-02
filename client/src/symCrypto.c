@@ -40,8 +40,9 @@ int generate_random_keys(messaged_personne_t* np) {
 int dualEncrypt(const char* plaintext, size_t len,
     messaged_personne_t* per,
     unsigned char** encrypted, size_t* encrypted_size) {
+    
     int lon = 0;
-    if(len > 12){
+    if (len > 12) {
         len += 8;
         lon = 1;
     }
@@ -50,35 +51,25 @@ int dualEncrypt(const char* plaintext, size_t len,
 
     unsigned char nonce[CHACHA20_NONCE_LEN];
     memset(nonce, 0, CHACHA20_NONCE_LEN);
-    sprintf((char *)nonce, "this:%d", per->send_nonce);
-    //sprintf((char *)nonce, "this 0");
+    sprintf((char*)nonce, "this:%d", per->send_nonce);
 
-
-    // Step 0: Pad plaintext
+    // Prepare and pad plaintext
     unsigned char *padded_plain = malloc(padded_len);
     if (!padded_plain) return -1;
     memset(padded_plain, 0, padded_len);
-    if(lon == 1){
+    if (lon == 1) {
         memcpy(padded_plain, plaintext, 12);
-        memcpy(padded_plain+16, plaintext+12, len-12);
-    }else{
-       memcpy(padded_plain, (unsigned char*)plaintext, len); 
+        memcpy(padded_plain + 16, plaintext + 12, len - 12);
+    } else {
+        memcpy(padded_plain, plaintext, len);
     }
 
-    // Debugging step to print the content of the encrypted buffer
-    /*for (int i = 0; i < padded_len; i++) {
-        printf("Encrypted buffer[%d]: %02x\n", i, (padded_plain)[i]);
-    }*/
-
-    
-
-
-    // Step 1: ChaCha20 encrypt plaintext
+    // Step 1: ChaCha20 encrypt
     unsigned char *chacha_out = malloc(padded_len);
     if (!chacha_out) return -1;
     crypto_stream_chacha20_xor(chacha_out, padded_plain, padded_len, nonce, per->send_K1);
 
-    // Step 2: AES-CBC encrypt the ChaCha20 output
+    // Step 2: AES-CBC encrypt ChaCha20 output
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) return -1;
 
@@ -90,128 +81,105 @@ int dualEncrypt(const char* plaintext, size_t len,
     EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, per->send_K2, nonce);
     EVP_EncryptUpdate(ctx, aes_out, &outlen, chacha_out, padded_len);
     EVP_EncryptFinal_ex(ctx, aes_out + outlen, &tmplen);
-
-    //printf("outlen after EVP_EncryptUpdate: %d\n", outlen);
-    //printf("outlen after EVP_EncryptFinal_ex: %d\n", outlen + tmplen);
-
     outlen += tmplen;
 
-
-    // Step 3: Generate ChaCha20 keystream with K3
-    unsigned char *keystream = malloc(outlen);
-    if (!keystream) return -1;
-    crypto_stream_chacha20(keystream, outlen, nonce, per->send_K3);
-
-    // Step 4: Allocate output buffer with 4-byte size prefix
+    // Step 3: Append 4-byte original length after AES output (before XOR)
     *encrypted_size = outlen + 4;
-    *encrypted = malloc(sizeof(char)*(*encrypted_size));
+    unsigned char *aes_with_len = malloc(*encrypted_size);
+    if (!aes_with_len) return -1;
+    memcpy(aes_with_len, aes_out, outlen);
+
+    uint32_t len_net = htonl(len);
+    memcpy(aes_with_len + outlen, &len_net, 4);
+
+    // Step 4: XOR the combined AES output + len
+    unsigned char *keystream = malloc(*encrypted_size);
+    if (!keystream) return -1;
+    crypto_stream_chacha20(keystream, *encrypted_size, nonce, per->send_K3);
+
+    *encrypted = malloc(*encrypted_size);
     if (!(*encrypted)) return -1;
-    memset(*encrypted, 0, *encrypted_size);
-
-    uint32_t len_net = htonl(len); // Store original message length
-    memcpy(*encrypted, &len_net, 4);
-    //printf("Allocated encrypted buffer with size: %d\n", *encrypted_size);
-    //printf("outlen after AES encryption: %d\n", outlen);
-
-    for (int i = 0; i < outlen; i++) {
-        (*encrypted)[4 + i] = aes_out[i] ^ keystream[i];
+    for (size_t i = 0; i < *encrypted_size; i++) {
+        (*encrypted)[i] = aes_with_len[i] ^ keystream[i];
     }
-
-    // Debugging step to print the content of the encrypted buffer
-    /*for (int i = 0; i < padded_len; i++) {
-        printf("Encrypted buffer[%d]: %02x\n", i, (padded_plain)[i]);
-    }*/
 
     per->send_nonce += strlen(plaintext);
 
-    // Cleanup
     EVP_CIPHER_CTX_free(ctx);
-    free(chacha_out);
     free(padded_plain);
+    free(chacha_out);
     free(aes_out);
+    free(aes_with_len);
     free(keystream);
 
     return 0;
 }
 
 
+
 int dualDecrypt(const unsigned char* ciphertext, size_t len,
     messaged_personne_t* per,
     char** plaintext) {
 
-    if (len < 4) return -1; // Not enough data for even the length header
-
-    // Step 0: Extract original length from first 4 bytes
-    uint32_t original_len_net;
-    memcpy(&original_len_net, ciphertext, 4);
-    size_t original_len = ntohl(original_len_net);
-
-    size_t encrypted_len = len - 4;
+    if (len < 4) return -1;
 
     unsigned char nonce[CHACHA20_NONCE_LEN];
     memset(nonce, 0, CHACHA20_NONCE_LEN);
     sprintf((char *)nonce, "this:%d", per->receive_nonce);
-    //sprintf((char *)nonce, "this 0");
 
-    // Step 1: Reconstruct keystream
-    unsigned char *keystream = malloc(encrypted_len);
-    unsigned char *aes_out = malloc(encrypted_len);
-    if (!keystream || !aes_out) return -1;
+    // Step 1: XOR the entire buffer to undo outermost encryption
+    unsigned char *keystream = malloc(len);
+    unsigned char *full_decrypted = malloc(len);
+    if (!keystream || !full_decrypted) return -1;
 
-    crypto_stream_chacha20(keystream, encrypted_len, nonce, per->rcv_K3);
-
-    // Step 2: Undo XOR to get AES ciphertext
-    for (size_t i = 0; i < encrypted_len; i++) {
-        aes_out[i] = ciphertext[4 + i] ^ keystream[i];
+    crypto_stream_chacha20(keystream, len, nonce, per->rcv_K3);
+    for (size_t i = 0; i < len; i++) {
+        full_decrypted[i] = ciphertext[i] ^ keystream[i];
     }
+
+    // Step 2: Extract the original message length from the last 4 bytes
+    if (len < 4) return -1;
+    uint32_t len_net;
+    memcpy(&len_net, full_decrypted + len - 4, 4);
+    size_t original_len = ntohl(len_net);
+
+    size_t aes_len = len - 4;
 
     // Step 3: AES decrypt
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    unsigned char *chacha_out = malloc(encrypted_len);
+    unsigned char *chacha_out = malloc(aes_len);
     if (!ctx || !chacha_out) return -1;
-
 
     int outlen = 0, tmplen = 0;
     EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, per->rcv_K2, nonce);
-    EVP_DecryptUpdate(ctx, chacha_out, &outlen, aes_out, encrypted_len);
+    EVP_DecryptUpdate(ctx, chacha_out, &outlen, full_decrypted, aes_len);
     EVP_DecryptFinal_ex(ctx, chacha_out + outlen, &tmplen);
     outlen += tmplen;
 
-    // Debugging step to print the content of the encrypted buffer
-
-    
-
-
-    // Step 4: ChaCha20 decrypt full buffer, then truncate to original_len
+    // Step 4: ChaCha20 decryption
     unsigned char *full_plain = malloc(outlen);
     if (!full_plain) return -1;
-
     crypto_stream_chacha20_xor(full_plain, chacha_out, outlen, nonce, per->rcv_K1);
 
-
-
-
-    if(original_len > 16){
-        *plaintext = malloc(original_len -4);
+    // Step 5: Recover original message
+    if (original_len > 16) {
+        *plaintext = malloc(original_len - 4);
         if (!*plaintext) return -1;
         memcpy(*plaintext, full_plain, 12);
-        memcpy(*plaintext+12, full_plain+16, original_len-12);
-        (*plaintext)[original_len-3] = '\0'; // Null-terminate
-    }else{
-        *plaintext = malloc(sizeof(char)*(original_len+1));
+        memcpy(*plaintext + 12, full_plain + 16, original_len - 12);
+        (*plaintext)[original_len - 4] = '\0';
+    } else {
+        *plaintext = malloc(original_len + 1);
         if (!*plaintext) return -1;
         memcpy(*plaintext, full_plain, original_len);
-        (*plaintext)[original_len] = '\0'; // Null-terminate
+        (*plaintext)[original_len] = '\0';
     }
-
-    
 
     per->receive_nonce += strlen(*plaintext);
 
-    // Cleanup
     EVP_CIPHER_CTX_free(ctx);
     free(keystream);
-    free(aes_out);
+    free(full_decrypted);
     free(chacha_out);
     free(full_plain);
 
